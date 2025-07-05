@@ -4,48 +4,32 @@
  * @NModuleScope SameAccount
  * @Author Bruno Rubio, Urku Consulting, LLC
  */
-define(['N/ui/message', 'N/url'], (message, url) => {
+define(['N/ui/message'], (message) => {
 
     function pageInit(context) {
-        // Use a short delay to ensure the entire page has loaded before searching for the button
-        setTimeout(function() {
-            console.log("Attempting to find button with ID: custpage_send_ack_email_btn_html");
-            const sendButton = document.getElementById('custpage_send_ack_email_btn_html');
-            console.log("Button element found:", sendButton); // This should show the element, not null
+        // Find the NetSuite field that contains our button.
+        const fieldContainer = document.getElementById('custpage_send_ack_email_btn_fs');
+        
+        if (fieldContainer) {
+            // Find the button *inside* that field container.
+            const sendButton = fieldContainer.querySelector('input[type="button"]');
 
             if (sendButton) {
-                console.log("Attaching click handler to button.");
+                // If the button is found, attach the click action.
                 sendButton.onclick = function() {
-                    const suiteletUrl = sendButton.dataset.url;
-                    sendEmailInBackground(suiteletUrl);
-                    return false;
+                    displayTestMessage();
                 };
-            } else {
-                console.error("ERROR: Could not find the 'Send Acknowledgment Email' button element on the page.");
             }
-        }, 500); // Wait 500 milliseconds
+        }
     }
 
-    function sendEmailInBackground(suiteletUrl) {
-        let msg = message.create({
-            title: 'Processing',
-            message: 'Sending acknowledgment email...',
-            type: message.Type.INFORMATION
-        });
-        msg.show();
-
-        fetch(suiteletUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok. Status: ' + response.status);
-                }
-                window.location.reload();
-            })
-            .catch(error => {
-                console.error('Error sending email:', error);
-                msg.hide();
-                alert('An error occurred while sending the email. Please check the console for details.');
-            });
+    function displayTestMessage() {
+        message.create({
+            title: 'Button Click Successful!',
+            message: 'The click handler is now attached and working correctly.',
+            type: message.Type.CONFIRMATION,
+            duration: 5000 
+        }).show();
     }
 
     return {
