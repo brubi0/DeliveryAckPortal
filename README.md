@@ -1,17 +1,18 @@
 # NetSuite Delivery Acknowledgment Portal
 
 **Author:** Bruno Rubio, Urku Consulting, LLC
-**Version:** 2.0.0
+**Version:** 3.0.0
 
 ## Overview
 
-This NetSuite application provides a streamlined, paperless solution for customers to acknowledge receipt of goods and for internal users to print a signed delivery note. It adds context-sensitive buttons to the Item Fulfillment record to manage the entire acknowledgment lifecycle.
+This NetSuite application provides a streamlined, paperless solution for customers to acknowledge receipt of goods and for internal users to print a signed delivery note. It adds a context-sensitive button to the Item Fulfillment record that allows a user to email a signature request to the customer. The customer receives a link to a secure, external webpage where they can review the full delivery details, provide their name and title, and capture their digital signature.
 
 ## Features
 
-* **Context-Aware Buttons:** Adds a "Send Acknowledgment Email" button to unacknowledged records and a "Print Signed Delivery Note" button to acknowledged records.
-* **External Signature Page:** Generates a secure, external webpage for customers to provide their name, title, and a captured digital signature.
-* **Automated Data Capture:** Automatically saves all acknowledgment data back to the corresponding Item Fulfillment record.
+* **Context-Aware Button:** Adds a "Send Acknowledgment Email" button to "Shipped" Item Fulfillment records. After acknowledgment, this button is replaced with a "Print Signed Delivery Note" button.
+* **Background Emailing:** The "Send" button uses an asynchronous background call (AJAX) to send the email, providing a seamless user experience without leaving the transaction page.
+* **External Signature Page:** Generates a secure, external webpage for customers. This page displays a full preview of the delivery note—including company branding, shipping details, and a complete itemized list—before prompting for a signature.
+* **Automated Data Capture:** Automatically saves the customer's printed name, title, signature image, and acknowledgment date back to the corresponding Item Fulfillment record.
 * **Printable PDF Generation:** Creates a formatted PDF document containing all delivery and acknowledgment details, including the captured signature image.
 
 ---
@@ -37,18 +38,17 @@ An Advanced PDF/HTML Template must be created to define the layout of the printa
 
 * **Navigate To:** `Customization > Forms > Advanced PDF/HTML Templates > New`
 * **Title:** `Delivery Acknowledgment Form` (or similar)
-* **Preferred:** Checked
 * **Note the Internal ID** of this template after saving.
 
 ### Saved Scripts
 
 This application consists of three essential script files.
 
-| File Name                         | Script Type       | Deployment                            |
-| :-------------------------------- | :---------------- | :------------------------------------ |
-| `urku_ue_add_ack_button.js`       | User Event Script | Deployed to **Item Fulfillment** Record |
-| `urku_sl_delivery_ack.js`         | Suitelet          | Deployed as a Page/Form               |
-| `urku_cs_delivery_ack_helper.js`  | Client Script     | Not Deployed (Called by Suitelet)     |
+| File Name                         | Script Type       | Deployment Notes                        |
+| :-------------------------------- | :---------------- | :-------------------------------------- |
+| `urku_ue_add_ack_button.js`       | User Event Script | Deployed to **Item Fulfillment** Record. Contains embedded client-side logic for the "Send" button. |
+| `urku_sl_delivery_ack.js`         | Suitelet          | Deployed as a Page/Form. Needs to be available without login. |
+| `urku_cs_delivery_ack_helper.js`  | Client Script     | Not Deployed. Called by the Suitelet to power the signature pad.     |
 
 ---
 
@@ -65,7 +65,7 @@ Follow these steps to deploy the application.
 ### 2. Upload Scripts
 
 1.  Create a folder in the File Cabinet for this project (e.g., `/SuiteScripts/DeliveryAckPortal`).
-2.  Upload the three script files to this folder.
+2.  Upload the three essential script files to this folder.
 
 ### 3. Create and Deploy Scripts
 
@@ -90,8 +90,9 @@ Follow these steps to deploy the application.
 ## Usage
 
 1.  Navigate to a "Shipped" Item Fulfillment record.
-2.  If unacknowledged, click **"Send Acknowledgment Email"**. A confirmation page appears, and an email is sent to the customer.
-3.  The customer clicks the link, fills out the form, and submits their signature.
-4.  The Item Fulfillment record is updated with the acknowledgment data.
-5.  If you now view the same Item Fulfillment, the button will have changed to **"Print Signed Delivery Note"**.
-6.  Clicking this button generates and downloads the final, signed PDF.
+2.  If unacknowledged, click **"Send Acknowledgment Email"**. The page will briefly reload, confirming the email has been sent in the background.
+3.  The customer receives an email and clicks the link.
+4.  The customer sees a full preview of the delivery note, fills out the acknowledgment form, and submits their signature.
+5.  The Item Fulfillment record is automatically updated with the acknowledgment data.
+6.  If you now view the same Item Fulfillment, the button will have changed to **"Print Signed Delivery Note"**.
+7.  Clicking this button generates and downloads the final, signed PDF.
