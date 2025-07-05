@@ -27,12 +27,10 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             if (request.method === 'GET') {
                 handleGet(request, response);
             } else if (request.method === 'POST') {
-                // Pass request and response objects directly
                 handlePost(request, response);
             }
         };
         
-        // Generates the printable PDF
         const handlePrintNote = (request, response) => {
             const recordId = request.parameters.recordId;
             const templateId = 209;
@@ -75,19 +73,17 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                         transactionId: recordId
                     }
                 });
-                let successHtml = `
-                    <h1>Email Sent Successfully</h1>
-                    <p>The acknowledgment email has been sent. You can close this window.</p>
-                    <br>
-                    <button onclick="history.back()">Go Back</button>
-                `;
-                response.write(successHtml);
+                // -- NO LONGER NEEDED --
+                // The client script will handle the user feedback by reloading the page.
+                // We just write a simple success response for the fetch() call.
+                response.write(JSON.stringify({ success: true }));
+
             } catch(e) {
-                response.write(`<h1>Error Sending Email</h1><p>The following error occurred: ${e.message}</p>`);
+                response.write(JSON.stringify({ success: false, error: e.message }));
+                response.code = 500;
             }
         };
 
-        // Displays the external signature form to the customer
         const handleGet = (request, response) => {
             const recordId = request.parameters.recordId;
             const tranId = request.parameters.tranid;
@@ -147,9 +143,7 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             response.writePage(form);
         };
 
-        // Handles the submission of the signature form
         const handlePost = (request, response) => {
-            // THIS IS THE FIX: Reverted to the standard, server-side compatible method
             const recordId = request.parameters.custpage_record_id;
             const signatureData = request.parameters.custpage_signature_data;
             const receivedByName = request.parameters.custpage_ack_by_name;
