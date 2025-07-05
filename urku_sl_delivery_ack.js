@@ -3,11 +3,11 @@
  * @NScriptType Suitelet
  * @NModuleScope SameAccount
  * @Author Bruno Rubio, Urku Consulting, LLC
- * @Version 7.0.0
- * @Description Final version. Reverted handlePost to use request.parameters for server-side compatibility.
+ * @Version 7.4.0
+ * @Description Consolidates form into single HTML block for correct layout control.
  */
-define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/email', 'N/url', 'N/format', 'N/render'],
-    (serverWidget, record, file, search, runtime, email, url, format, render) => {
+define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/email', 'N/url', 'N/format', 'N/render', 'N/config'],
+    (serverWidget, record, file, search, runtime, email, url, format, render, config) => {
 
         // Main router function
         const onRequest = (context) => {
@@ -18,7 +18,7 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             if (action === 'send_email') {
                 handleSendEmail(request, response);
                 return;
-            } 
+            }
             else if (action === 'print_note') {
                 handlePrintNote(request, response);
                 return;
@@ -30,7 +30,8 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                 handlePost(request, response);
             }
         };
-        
+
+        // Generates the printable PDF
         const handlePrintNote = (request, response) => {
             const recordId = request.parameters.recordId;
             const templateId = 209;
@@ -73,17 +74,19 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                         transactionId: recordId
                     }
                 });
-                // -- NO LONGER NEEDED --
-                // The client script will handle the user feedback by reloading the page.
-                // We just write a simple success response for the fetch() call.
-                response.write(JSON.stringify({ success: true }));
-
+                let successHtml = `
+                    <h1>Email Sent Successfully</h1>
+                    <p>The acknowledgment email has been sent. You can close this window.</p>
+                    <br>
+                    <button onclick="history.back()">Go Back</button>
+                `;
+                response.write(successHtml);
             } catch(e) {
-                response.write(JSON.stringify({ success: false, error: e.message }));
-                response.code = 500;
+                response.write(`<h1>Error Sending Email</h1><p>The following error occurred: ${e.message}</p>`);
             }
         };
 
+        // Displays the external signature form to the customer
         const handleGet = (request, response) => {
             const recordId = request.parameters.recordId;
             const tranId = request.parameters.tranid;
@@ -93,48 +96,132 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                 return;
             }
 
+            const fulfillmentRecord = record.load({
+                type: record.Type.ITEM_FULFILLMENT,
+                id: recordId,
+                isDynamic: true
+            });
+            
+            const companyLogoUrl = 'https://507081-sb1.app.netsuite.com/core/media/media.nl?id=5053&c=507081_SB1&h=nor3AjnlRLfn1tT9M_IieTtlPLn6ESwzTrWKpQhk9hGrG9pF';
+            const companyAddress = '4611 S. University Dr. Suite #435, Davie FL 33328<br>Tel. (954) 538-3808, Fax. (866) 794-7520<br>www.dmimedical-usa.com';
+
             const form = serverWidget.createForm({ title: `Delivery Acknowledgment for: ${tranId}` });
             form.clientScriptModulePath = './urku_cs_delivery_ack_helper.js';
 
-            form.addFieldGroup({ id: 'maingroup', label: 'Acknowledgment Details' });
-
-            let htmlHeader = form.addField({
-                id: 'custpage_header_html',
+            let fullHtml = form.addField({
+                id: 'custpage_full_form_html',
                 type: serverWidget.FieldType.INLINEHTML,
-                label: ' ',
-                container: 'maingroup'
-            });
-            htmlHeader.defaultValue = `<p style="font-size: 14px;">Please review and acknowledge receipt of goods for transaction <strong>${tranId}</strong>.</p><hr>`;
-
-            const receivedByField = form.addField({
-                id: 'custpage_ack_by_name',
-                type: serverWidget.FieldType.TEXTAREA,
-                label: 'Received By (Print Name)',
-                container: 'maingroup'
-            });
-            receivedByField.isMandatory = true;
-
-            const titleField = form.addField({
-                id: 'custpage_ack_by_title_phone',
-                type: serverWidget.FieldType.TEXTAREA,
-                label: 'Title & Phone',
-                container: 'maingroup'
+                label: ' '
             });
 
-            let signatureHtml = form.addField({
-                id: 'custpage_signature_html',
-                type: serverWidget.FieldType.INLINEHTML,
-                label: 'Signature',
-                container: 'maingroup'
-            });
-            signatureHtml.defaultValue = `
+            let itemTable = '';
+            const lineCount = fulfillmentRecord.getLineCount({ sublistId: 'item' });
+            for (let i = 0; i < lineCount; i++) {
+                const itemName = fulfillmentRecord.getSublistText({ sublistId: 'item', fieldId: 'item', line: i });
+                const description = fulfillmentRecord.getSublistValue({ sublistId: 'item', fieldId: 'description', line: i });
+                const quantity = fulfillmentRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i });
+                const inventoryDetail = fulfillmentRecord.getSublistValue({ sublistId: 'item', fieldId: 'inventorydetail', line: i });
+                const expDate = fulfillmentRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_dmi_expiration_date', line: i });
+                
+                itemTable += `
+                    <tr>
+                        <td style="padding: 5px; border-bottom: 1px solid #ccc;">${itemName}</td>
+                        <td style="padding: 5px; border-bottom: 1px solid #ccc;">${description}</td>
+                        <td style="padding: 5px; border-bottom: 1px solid #ccc;">${inventoryDetail}</td>
+                        <td style="padding: 5px; border-bottom: 1px solid #ccc;">${expDate}</td>
+                        <td style="padding: 5px; border-bottom: 1px solid #ccc;" align="right">${quantity}</td>
+                    </tr>
+                `;
+            }
+
+            // All form content now lives in this single HTML block
+            fullHtml.defaultValue = `
                 <style>
+                    body { font-family: sans-serif; color: #333; }
+                    .main-container { max-width: 800px; margin: auto; }
+                    .header-table, .details-table, .items-table, .ack-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    .header-table td { vertical-align: top; }
+                    .details-box { border: 1px solid #ccc; padding: 5px; }
+                    .details-box th, .details-box td { border: 1px solid #ccc; padding: 5px; text-align: center; font-size: 9pt; }
+                    .items-table th { background-color: #f2f2f2; text-align: left; padding: 8px; border-bottom: 2px solid #ccc; }
+                    .ack-table td { padding: 8px; vertical-align: top; }
+                    .ack-table textarea { width: 100%; min-height: 40px; }
                     .signature-pad-container { border: 1px solid #ccc; background-color: #f9f9f9; width: 100%; max-width: 400px; height: 150px; }
                     #signature-pad { width: 100%; height: 100%; }
                 </style>
-                <div class="signature-pad-container"><canvas id="signature-pad"></canvas></div>
-                <button type="button" id="clear-signature" style="margin-top:5px;">Clear Signature</button>
-                <input type="hidden" name="custpage_signature_data" id="custpage_signature_data">
+
+                <div class="main-container">
+                    <table class="header-table">
+                        <tr>
+                            <td style="width: 60%;">
+                                <img src="${companyLogoUrl}" style="width: 15%; height: 15%; margin-bottom: 10px;" />
+                                <p style="font-size: 9pt;">${companyAddress}</p>
+                            </td>
+                            <td style="width: 40%; text-align: right;">
+                                <h1 style="font-size: 24pt;">Delivery Note</h1>
+                                <table class="details-box" style="width: 100%; margin-top: 10px;">
+                                    <tr><th>Date</th><th>Our Reference</th></tr>
+                                    <tr><td>${fulfillmentRecord.getText('trandate')}</td><td>${fulfillmentRecord.getValue('tranid')}</td></tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="details-table">
+                        <tr>
+                            <td style="width: 50%; vertical-align: top; font-size: 9pt;">
+                                <b>Address</b><br/>
+                                ${fulfillmentRecord.getValue('shipaddress')}
+                            </td>
+                            <td style="width: 50%; vertical-align: top;">
+                                 <table class="details-box" style="width: 100%;">
+                                    <tr>
+                                        <td><b>Customer PO</b><br/>${fulfillmentRecord.getValue({fieldId: 'otherrefnum', join: 'createdFrom'}) || ''}</td>
+                                        <td><b>SO Number</b><br/>${fulfillmentRecord.getText({fieldId: 'tranid', join: 'createdFrom'}) || ''}</td>
+                                    </tr>
+                                     <tr>
+                                        <td><b>Via</b><br/>${fulfillmentRecord.getText('shipmethod') || ''}</td>
+                                        <td><b>Incoterms</b><br/>${fulfillmentRecord.getText({fieldId: 'custbody2', join: 'createdFrom'}) || ''}</td>
+                                     </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Items</th>
+                                <th style="width: 35%;">Description</th>
+                                <th style="width: 15%;">Batch No.</th>
+                                <th style="width: 15%;">Exp. Date</th>
+                                <th style="width: 10%;" align="right">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemTable}
+                        </tbody>
+                    </table>
+                    <hr style="margin-top: 30px;"/>
+                
+                    <h2>Acknowledgment Details</h2>
+                    <table class="ack-table">
+                        <tr>
+                            <td style="width: 20%;"><b>Received By (Print Name) *</b></td>
+                            <td><textarea name="custpage_ack_by_name" required></textarea></td>
+                        </tr>
+                        <tr>
+                            <td><b>Title & Phone</b></td>
+                            <td><textarea name="custpage_ack_by_title_phone"></textarea></td>
+                        </tr>
+                         <tr>
+                            <td><b>Signature</b></td>
+                            <td>
+                                <div class="signature-pad-container"><canvas id="signature-pad"></canvas></div>
+                                <button type="button" id="clear-signature" style="margin-top:5px;">Clear Signature</button>
+                                <input type="hidden" name="custpage_signature_data" id="custpage_signature_data">
+                            </td>
+                        </tr>
+                    </table>
+                </div>
             `;
             
             form.addField({ id: 'custpage_record_id', type: serverWidget.FieldType.TEXT, label: ' ' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = recordId;
@@ -143,6 +230,7 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             response.writePage(form);
         };
 
+        // Handles the submission of the signature form
         const handlePost = (request, response) => {
             const recordId = request.parameters.custpage_record_id;
             const signatureData = request.parameters.custpage_signature_data;
