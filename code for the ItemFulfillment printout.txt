@@ -1,0 +1,165 @@
+<?xml version="1.0"?><!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+	<link name="NotoSans" type="font" subtype="truetype" src="${nsfont.NotoSans_Regular}" src-bold="${nsfont.NotoSans_Bold}" src-italic="${nsfont.NotoSans_Italic}" src-bolditalic="${nsfont.NotoSans_BoldItalic}" bytes="2" />
+	<#if .locale == "zh_CN">
+		<link name="NotoSansCJKsc" type="font" subtype="opentype" src="${nsfont.NotoSansCJKsc_Regular}" src-bold="${nsfont.NotoSansCJKsc_Bold}" bytes="2" />
+	<#elseif .locale == "zh_TW">
+		<link name="NotoSansCJKtc" type="font" subtype="opentype" src="${nsfont.NotoSansCJKtc_Regular}" src-bold="${nsfont.NotoSansCJKtc_Bold}" bytes="2" />
+	<#elseif .locale == "ja_JP">
+		<link name="NotoSansCJKjp" type="font" subtype="opentype" src="${nsfont.NotoSansCJKjp_Regular}" src-bold="${nsfont.NotoSansCJKjp_Bold}" bytes="2" />
+	<#elseif .locale == "ko_KR">
+		<link name="NotoSansCJKkr" type="font" subtype="opentype" src="${nsfont.NotoSansCJKkr_Regular}" src-bold="${nsfont.NotoSansCJKkr_Bold}" bytes="2" />
+	<#elseif .locale == "th_TH">
+		<link name="NotoSansThai" type="font" subtype="opentype" src="${nsfont.NotoSansThai_Regular}" src-bold="${nsfont.NotoSansThai_Bold}" bytes="2" />
+	</#if>
+    <style type="text/css">
+        * {
+            <#if .locale == "zh_CN">
+                font-family: NotoSans, NotoSansCJKsc, sans-serif;
+            <#elseif .locale == "zh_TW">
+                font-family: NotoSans, NotoSansCJKtc, sans-serif;
+            <#elseif .locale == "ja_JP">
+                font-family: NotoSans, NotoSansCJKjp, sans-serif;
+            <#elseif .locale == "ko_KR">
+                font-family: NotoSans, NotoSansCJKkr, sans-serif;
+            <#elseif .locale == "th_TH">
+                font-family: NotoSans, NotoSansThai, sans-serif;
+            <#else>
+                font-family: NotoSans, sans-serif;
+            </#if>
+        }
+        table { font-size: 9pt; table-layout: fixed; }
+        th { font-weight: bold; font-size: 8pt; vertical-align: middle; padding: 5px 6px 3px; background-color: #e3e3e3; color: #333333; }
+        td { padding: 4px 6px; }
+        td p { align:left }
+        b { font-weight: bold; color: #333333; }
+        table.header td { padding: 0; font-size: 10pt; }
+        table.itemtable th { padding-bottom: 10px; padding-top: 10px; }
+        td.addressheader { font-size: 8pt; font-weight: bold; padding-top: 6px; padding-bottom: 2px; }
+        td.address { padding-top: 0; }
+        span.itemname { font-weight: bold; line-height: 150%; }
+        .signature-image { max-width: 250px; max-height: 80px; }
+        .signature-box { vertical-align: bottom; border-bottom: 1px solid #333; }
+    </style>
+</head>
+<body padding="0.5in 0.5in 0.5in 0.5in" size="Letter">
+    <table class="header-table" style="width: 100%;">
+    <tr>
+        <td>
+            <!-- This uses the company logo from your NetSuite settings -->
+            <img src="${companyInformation.logoUrl}" style="width: 7%; height: 7%;" /> <br/>
+            4611 S. University Dr. Suite #435, Davie FL 33328 <br/>
+            Tel. (954) 538-3808, Fax. (866) 794-7520 <br/>
+            www.dmimedical-usa.com
+        </td>
+        <td align="right" style="vertical-align: top;">
+            <h1 style="font-size: 24pt;">Delivery Note</h1>
+            <table border="0" cellpadding="1" cellspacing="1" style="width:250px; margin-top: 10px;">
+                <thead>
+                    <tr>
+                    <th align="center" scope="col"><strong>Date</strong></th>
+                    <th align="center" scope="col">Our Reference</th>
+                    </tr>
+                </thead>
+                <tr>
+                    <td align="center">${record.trandate}</td>
+                    <td align="center">${record.tranid}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+  </table>
+
+    <table align="left" style="margin-top:20px;width:50%;">
+        <thead>
+            <tr>
+            <th class="addressheader" scope="col">${record.shipaddress@label}</th>
+            </tr>
+        </thead>
+        <tr>
+            <td class="address">${record.shipaddress}</td>
+        </tr>
+    </table>
+
+    <table class="body" style="width: 100%; margin-top: 10px;">
+        <tr>
+            <th>Customer PO</th>
+            <th>SO Number</th>
+            <th>Via</th>
+            <th>Incoterms</th>
+        </tr>
+        <tr>
+            <td>${record.createdfrom.otherrefnum}</td>
+            <td>${record.createdfrom.tranid}</td>
+            <td>${record.shipmethod}</td>
+            <td>${record.createdfrom.custbody2}</td>
+        </tr>
+    </table>
+
+    <#if record.item?has_content>
+    <table class="itemtable" style="width: 100%; margin-top: 10px;">
+        <thead>
+            <tr>
+            <th colspan="7">Items</th>
+            <th colspan="3">Description</th>
+            <th align="right" colspan="5">Batch No.</th>
+            <th align="right" colspan="5">Exp. Date</th>
+            <th align="right" colspan="4">Quantity</th>
+            </tr>
+        </thead>
+        <#list record.item as tranline>
+        <tr>
+            <td colspan="7"><span class="itemname">${tranline.item}</span></td>
+            <td colspan="3">${tranline.description}</td>
+            <td align="right" colspan="5">${tranline.inventorydetail}</td>
+            <td align="center" colspan="5">${tranline.custcol_dmi_expiration_date}</td>
+            <td align="right" colspan="4">${tranline.quantity}</td>
+        </tr>
+        </#list>
+    </table>
+    </#if>
+
+    <br/><br/>
+
+<table border="0" cellpadding="1" cellspacing="1" style="width:100%; margin-top: 30px;">
+    <tr>
+        <!-- Left Column: All signature details now live here -->
+        <td style="width: 50%;">
+            <table border="0" cellpadding="1" cellspacing="1" style="width:100%;">
+                <tr>
+                    <td style="width: 30%;">Received By:<br />Print Name:</td>
+                    <td class="signature-box">${record.custbody_urku_ack_by_name}</td>
+                </tr>
+                <tr style="height: 80px;">
+                    <td style="width: 30%; vertical-align: top;"><br />Signature:</td>
+                    <td class="signature-box">
+                        <#if record.custbody_urku_signature_base64?has_content>
+                            <img class="signature-image" src="data:image/png;base64,${record.custbody_urku_signature_base64?xml}" />
+                        </#if>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 30%;"><br />Title &amp; Phone:</td>
+                    <td class="signature-box">${record.custbody_urku_ack_by_title_phone}</td>
+                </tr>
+                <!-- Date has been moved to this section -->
+                <tr>
+                    <td style="width: 30%;"><br />Date:</td>
+                    <td class="signature-box"><br />${record.custbody_urku_ack_date}</td>
+                </tr>
+            </table>
+        </td>
+        <!-- Right Column: Delivered By -->
+        <td style="width: 50%; vertical-align: top;">
+            <table border="0" cellpadding="1" cellspacing="1" style="width:100%;">
+                <tr>
+                    <td style="height: 21px; width: 30%;">Delivered By:<br />Print Name:</td>
+                    <td class="signature-box" style="height: 21px;">${record.custbody_urku_delivered_by}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</pdf>

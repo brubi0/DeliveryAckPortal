@@ -2,12 +2,14 @@
  * @NApiVersion 2.1
  * @NScriptType Suitelet
  * @NModuleScope SameAccount
- * @Author Bruno Rubio, DMI, INC.
- * @Version 5.0.0
+ * @Author Bruno Rubio, Urku Consulting, LLC
+ * @Version 7.0.0
+ * @Description Final version. Reverted handlePost to use request.parameters for server-side compatibility.
  */
-define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/email', 'N/url', 'N/format'],
-    (serverWidget, record, file, search, runtime, email, url, format) => {
+define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/email', 'N/url', 'N/format', 'N/render'],
+    (serverWidget, record, file, search, runtime, email, url, format, render) => {
 
+        // Main router function
         const onRequest = (context) => {
             const request = context.request;
             const response = context.response;
@@ -16,21 +18,45 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             if (action === 'send_email') {
                 handleSendEmail(request, response);
                 return;
+            } 
+            else if (action === 'print_note') {
+                handlePrintNote(request, response);
+                return;
             }
 
             if (request.method === 'GET') {
                 handleGet(request, response);
             } else if (request.method === 'POST') {
+                // Pass request and response objects directly
                 handlePost(request, response);
             }
         };
+        
+        // Generates the printable PDF
+        const handlePrintNote = (request, response) => {
+            const recordId = request.parameters.recordId;
+            const templateId = 209;
 
+            const renderer = render.create();
+            renderer.setTemplateById({ id: templateId });
+            renderer.addRecord({
+                templateName: 'record',
+                record: record.load({
+                    type: record.Type.ITEM_FULFILLMENT,
+                    id: recordId
+                })
+            });
+
+            const pdfFile = renderer.renderAsPdf();
+            response.writeFile(pdfFile, true);
+        };
+
+        // Sends the initial email to the customer
         const handleSendEmail = (request, response) => {
-            // ... (This function remains the same)
             const recordId = request.parameters.recordId;
             const tranId = request.parameters.tranid;
             const recipientId = request.parameters.recipientId;
-            const senderId = 1888; 
+            const senderId = 1888;
 
             const suiteletUrl = url.resolveScript({
                 scriptId: 'customscript2774',
@@ -49,7 +75,6 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                         transactionId: recordId
                     }
                 });
-                // THIS IS THE CHANGE: Added a "Go Back" button to the success message
                 let successHtml = `
                     <h1>Email Sent Successfully</h1>
                     <p>The acknowledgment email has been sent. You can close this window.</p>
@@ -57,12 +82,12 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                     <button onclick="history.back()">Go Back</button>
                 `;
                 response.write(successHtml);
-
             } catch(e) {
                 response.write(`<h1>Error Sending Email</h1><p>The following error occurred: ${e.message}</p>`);
             }
         };
 
+        // Displays the external signature form to the customer
         const handleGet = (request, response) => {
             const recordId = request.parameters.recordId;
             const tranId = request.parameters.tranid;
@@ -72,58 +97,70 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                 return;
             }
 
-            // Get Today's Date Formatted
-            const today = format.format({ value: new Date(), type: format.Type.DATE });
-
             const form = serverWidget.createForm({ title: `Delivery Acknowledgment for: ${tranId}` });
             form.clientScriptModulePath = './urku_cs_delivery_ack_helper.js';
 
-            // THIS IS THE CHANGE: New form layout emulating your image
-            let formLayoutHtml = `
+            form.addFieldGroup({ id: 'maingroup', label: 'Acknowledgment Details' });
+
+            let htmlHeader = form.addField({
+                id: 'custpage_header_html',
+                type: serverWidget.FieldType.INLINEHTML,
+                label: ' ',
+                container: 'maingroup'
+            });
+            htmlHeader.defaultValue = `<p style="font-size: 14px;">Please review and acknowledge receipt of goods for transaction <strong>${tranId}</strong>.</p><hr>`;
+
+            const receivedByField = form.addField({
+                id: 'custpage_ack_by_name',
+                type: serverWidget.FieldType.TEXTAREA,
+                label: 'Received By (Print Name)',
+                container: 'maingroup'
+            });
+            receivedByField.isMandatory = true;
+
+            const titleField = form.addField({
+                id: 'custpage_ack_by_title_phone',
+                type: serverWidget.FieldType.TEXTAREA,
+                label: 'Title & Phone',
+                container: 'maingroup'
+            });
+
+            let signatureHtml = form.addField({
+                id: 'custpage_signature_html',
+                type: serverWidget.FieldType.INLINEHTML,
+                label: 'Signature',
+                container: 'maingroup'
+            });
+            signatureHtml.defaultValue = `
                 <style>
-                    .ack-table { border-collapse: collapse; width: 100%; max-width: 800px; font-family: sans-serif; font-size: 14px; }
-                    .ack-table td { padding: 8px; }
-                    .label { font-weight: bold; width: 15%; }
-                    .field-line { border: none; border-bottom: 1px solid #333; width: 100%; padding: 5px 0; }
-                    .signature-pad-container { border: 1px solid #ccc; background-color: #f9f9f9; width: 100%; height: 100px; }
+                    .signature-pad-container { border: 1px solid #ccc; background-color: #f9f9f9; width: 100%; max-width: 400px; height: 150px; }
                     #signature-pad { width: 100%; height: 100%; }
                 </style>
-                <table class="ack-table">
-                    <tr>
-                        <td class="label">Received By: Print Name:</td>
-                        <td><input type="text" name="custpage_ack_by_name" class="field-line"></td>
-                        <td class="label">Delivered By: Print Name:</td>
-                        <td><input type="text" class="field-line" value="Jose Torres" disabled></td>
-                    </tr>
-                    <tr>
-                        <td class="label">Signature:</td>
-                        <td><div class="signature-pad-container"><canvas id="signature-pad"></canvas></div><input type="hidden" name="custpage_signature_data" id="custpage_signature_data"></td>
-                        <td class="label">Date:</td>
-                        <td><input type="text" class="field-line" value="${today}" disabled></td>
-                    </tr>
-                    <tr>
-                        <td class="label">Title & Phone:</td>
-                        <td><input type="text" name="custpage_ack_by_title_phone" class="field-line"></td>
-                        <td colspan="2"><button type="button" id="clear-signature" style="margin-top:5px;">Clear Signature</button></td>
-                    </tr>
-                </table>
+                <div class="signature-pad-container"><canvas id="signature-pad"></canvas></div>
+                <button type="button" id="clear-signature" style="margin-top:5px;">Clear Signature</button>
+                <input type="hidden" name="custpage_signature_data" id="custpage_signature_data">
             `;
             
-            form.addField({ id: 'custpage_form_html', type: serverWidget.FieldType.INLINEHTML, label: ' ' }).defaultValue = formLayoutHtml;
             form.addField({ id: 'custpage_record_id', type: serverWidget.FieldType.TEXT, label: ' ' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = recordId;
             form.addSubmitButton({ label: 'Submit Acknowledgment' });
 
             response.writePage(form);
         };
 
+        // Handles the submission of the signature form
         const handlePost = (request, response) => {
+            // THIS IS THE FIX: Reverted to the standard, server-side compatible method
             const recordId = request.parameters.custpage_record_id;
             const signatureData = request.parameters.custpage_signature_data;
-            const receivedByName = request.parameters.custpage_ack_by_name; // Capture new field
-            const receivedByTitle = request.parameters.custpage_ack_by_title_phone; // Capture new field
+            const receivedByName = request.parameters.custpage_ack_by_name;
+            const receivedByTitle = request.parameters.custpage_ack_by_title_phone;
 
             if (!signatureData || signatureData.length < 100) {
                 response.write('<h1>Error</h1><p>A signature is required.</p>');
+                return;
+            }
+            if (!receivedByName) {
+                response.write('<h1>Error</h1><p>The "Received By: Print Name" field is required.</p>');
                 return;
             }
 
@@ -133,20 +170,27 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                 const updateValues = {
                     'custbody_urku_delivery_acknowledged': true,
                     'custbody_urku_ack_date': formattedDate,
-                    'custbody_urku_ack_by_name': receivedByName, // Add to save object
-                    'custbody_urku_ack_by_title_phone': receivedByTitle // Add to save object
+                    'custbody_urku_ack_by_name': receivedByName,
+                    'custbody_urku_ack_by_title_phone': receivedByTitle
                 };
 
                 if (signatureData && signatureData.length > 100) {
+                    const base64Data = signatureData.split(',')[1];
+                    updateValues['custbody_urku_signature_base64'] = base64Data;
+
                     const signatureFile = file.create({
                         name: `Signature_IF_${recordId}.png`,
                         fileType: file.Type.PNGIMAGE,
-                        contents: signatureData.split(',')[1],
+                        contents: base64Data,
                         folder: 7600
                     });
                     const fileId = signatureFile.save();
-                    const fileUrl = file.load({ id: fileId }).url;
-                    updateValues['custbody_urku_signature_file_link'] = `https://` + runtime.accountId + fileUrl;
+                    
+                    const host = url.resolveDomain({ hostType: url.HostType.APPLICATION });
+                    const fileObj = file.load({ id: fileId });
+                    const fullFileUrl = `https://${host}${fileObj.url}`;
+
+                    updateValues['custbody_urku_signature_file_link'] = fullFileUrl;
                 }
 
                 record.submitFields({
