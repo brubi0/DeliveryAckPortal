@@ -3,13 +3,12 @@
  * @NScriptType Suitelet
  * @NModuleScope SameAccount
  * @Author Bruno Rubio, Urku Consulting, LLC
- * @Version 7.4.0
- * @Description Consolidates form into single HTML block for correct layout control.
+ * @Version 1.01
+ * @Description Resets cache lock and attaches PDF to an internal Message record.
  */
-define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/email', 'N/url', 'N/format', 'N/render', 'N/config'],
-    (serverWidget, record, file, search, runtime, email, url, format, render, config) => {
+define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/cache', 'N/runtime', 'N/email', 'N/url', 'N/format', 'N/render', 'N/config'],
+    (serverWidget, record, file, cache, runtime, email, url, format, render, config) => {
 
-        // Main router function
         const onRequest = (context) => {
             const request = context.request;
             const response = context.response;
@@ -31,26 +30,51 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             }
         };
 
-        // Generates the printable PDF
         const handlePrintNote = (request, response) => {
             const recordId = request.parameters.recordId;
-            const templateId = 209;
+            
+            // Using a new cache name to reset the lock for this test.
+            const printLockCache = cache.getCache({ name: 'printLockCache_v2', scope: cache.Scope.SESSION });
+            const lockKey = `print_lock_${recordId}`;
+            const isLocked = printLockCache.get({ key: lockKey });
 
+            if (isLocked) {
+                response.write('<script>window.close();</script>');
+                return; 
+            }
+            printLockCache.put({ key: lockKey, value: 'LOCKED', ttl: 300 });
+            
+            const templateId = 209;
+            const fulfillmentRecord = record.load({ type: record.Type.ITEM_FULFILLMENT, id: recordId });
             const renderer = render.create();
             renderer.setTemplateById({ id: templateId });
-            renderer.addRecord({
-                templateName: 'record',
-                record: record.load({
-                    type: record.Type.ITEM_FULFILLMENT,
-                    id: recordId
-                })
-            });
+            renderer.addRecord({ templateName: 'record', record: fulfillmentRecord });
 
             const pdfFile = renderer.renderAsPdf();
+            const tranId = fulfillmentRecord.getValue('tranid');
+            pdfFile.name = `Signed_Delivery_Note_${tranId}.pdf`;
+
+            try {
+                const currentUser = runtime.getCurrentUser();
+                email.send({
+                    author: currentUser.id,
+                    recipients: currentUser.id,
+                    subject: `Signed Delivery Note for ${tranId}`,
+                    body: 'Signed delivery note is attached.',
+                    attachments: [pdfFile],
+                    relatedRecords: {
+                        transactionId: recordId
+                    }
+                });
+            } catch (e) {
+                log.error('PDF Email Attachment Error', `Failed to email/attach PDF for IF ID ${recordId}. Error: ${e.message}`);
+            }
+            
             response.writeFile(pdfFile, true);
         };
 
-        // Sends the initial email to the customer
+        // handleSendEmail, handleGet, and handlePost functions remain the same...
+        
         const handleSendEmail = (request, response) => {
             const recordId = request.parameters.recordId;
             const tranId = request.parameters.tranid;
@@ -86,7 +110,6 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             }
         };
 
-        // Displays the external signature form to the customer
         const handleGet = (request, response) => {
             const recordId = request.parameters.recordId;
             const tranId = request.parameters.tranid;
@@ -134,7 +157,6 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                 `;
             }
 
-            // All form content now lives in this single HTML block
             fullHtml.defaultValue = `
                 <style>
                     body { font-family: sans-serif; color: #333; }
@@ -149,7 +171,6 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                     .signature-pad-container { border: 1px solid #ccc; background-color: #f9f9f9; width: 100%; max-width: 400px; height: 150px; }
                     #signature-pad { width: 100%; height: 100%; }
                 </style>
-
                 <div class="main-container">
                     <table class="header-table">
                         <tr>
@@ -201,7 +222,6 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
                         </tbody>
                     </table>
                     <hr style="margin-top: 30px;"/>
-                
                     <h2>Acknowledgment Details</h2>
                     <table class="ack-table">
                         <tr>
@@ -230,7 +250,6 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/search', 'N/runtime', 'N/e
             response.writePage(form);
         };
 
-        // Handles the submission of the signature form
         const handlePost = (request, response) => {
             const recordId = request.parameters.custpage_record_id;
             const signatureData = request.parameters.custpage_signature_data;

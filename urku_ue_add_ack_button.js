@@ -3,6 +3,7 @@
  * @NScriptType UserEventScript
  * @NModuleScope SameAccount
  * @Author Bruno Rubio, Urku Consulting, LLC
+ * @Version 1.02
  */
 define(['N/url'], (url) => {
 
@@ -20,11 +21,9 @@ define(['N/url'], (url) => {
         }
         
         if (!isAcknowledged) {
-            // This now generates a relative URL, resolving the "Failed to fetch" error.
             const suiteletUrl = url.resolveScript({
                 scriptId: 'customscript2774',
                 deploymentId: 'customdeploy1',
-                // returnExternalUrl: true,  <-- THIS LINE HAS BEEN REMOVED
                 params: {
                     'custpage_action': 'send_email',
                     'recordId': currentRecord.id,
@@ -74,7 +73,8 @@ define(['N/url'], (url) => {
                 label: ' '
             });
 
-            printButtonField.defaultValue = `<input type="button" class="uir-button" value="Print Signed Delivery Note" onclick="window.open('${suiteletUrl}');" />`;
+            // Renamed button to "Archive Delivery Note"
+            printButtonField.defaultValue = `<input type="button" class="uir-button" value="Archive Delivery Note" onclick="this.disabled=true; window.open('${suiteletUrl}');" />`;
         }
     };
 
