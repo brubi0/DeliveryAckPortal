@@ -3,11 +3,11 @@
  * @NScriptType Suitelet
  * @NModuleScope SameAccount
  * @Author Bruno Rubio, Urku Consulting, LLC
- * @Version 1.01
- * @Description Resets cache lock and attaches PDF to an internal Message record.
+ * @Version 1.03
+ * @Description Saves PDF to File Cabinet and links it via a custom hyperlink field.
  */
-define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/cache', 'N/runtime', 'N/email', 'N/url', 'N/format', 'N/render', 'N/config'],
-    (serverWidget, record, file, cache, runtime, email, url, format, render, config) => {
+define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/runtime', 'N/email', 'N/url', 'N/format', 'N/render', 'N/config'],
+    (serverWidget, record, file, runtime, email, url, format, render, config) => {
 
         const onRequest = (context) => {
             const request = context.request;
@@ -32,49 +32,52 @@ define(['N/ui/serverWidget', 'N/record', 'N/file', 'N/cache', 'N/runtime', 'N/em
 
         const handlePrintNote = (request, response) => {
             const recordId = request.parameters.recordId;
-            
-            // Using a new cache name to reset the lock for this test.
-            const printLockCache = cache.getCache({ name: 'printLockCache_v2', scope: cache.Scope.SESSION });
-            const lockKey = `print_lock_${recordId}`;
-            const isLocked = printLockCache.get({ key: lockKey });
-
-            if (isLocked) {
-                response.write('<script>window.close();</script>');
-                return; 
-            }
-            printLockCache.put({ key: lockKey, value: 'LOCKED', ttl: 300 });
-            
             const templateId = 209;
-            const fulfillmentRecord = record.load({ type: record.Type.ITEM_FULFILLMENT, id: recordId });
+            const folderId = 7604; // Folder for the final PDF
+
+            const fulfillmentRecord = record.load({
+                type: record.Type.ITEM_FULFILLMENT,
+                id: recordId
+            });
+
             const renderer = render.create();
             renderer.setTemplateById({ id: templateId });
-            renderer.addRecord({ templateName: 'record', record: fulfillmentRecord });
+            renderer.addRecord({
+                templateName: 'record',
+                record: fulfillmentRecord
+            });
 
             const pdfFile = renderer.renderAsPdf();
             const tranId = fulfillmentRecord.getValue('tranid');
             pdfFile.name = `Signed_Delivery_Note_${tranId}.pdf`;
+            pdfFile.folder = folderId;
 
             try {
-                const currentUser = runtime.getCurrentUser();
-                email.send({
-                    author: currentUser.id,
-                    recipients: currentUser.id,
-                    subject: `Signed Delivery Note for ${tranId}`,
-                    body: 'Signed delivery note is attached.',
-                    attachments: [pdfFile],
-                    relatedRecords: {
-                        transactionId: recordId
+                // Save the PDF to the File Cabinet
+                const fileId = pdfFile.save();
+                
+                // Get the full URL of the new file
+                const host = url.resolveDomain({ hostType: url.HostType.APPLICATION });
+                const fileObj = file.load({ id: fileId });
+                const fullFileUrl = `https://${host}${fileObj.url}`;
+
+                // Update the custom hyperlink field on the Item Fulfillment record
+                record.submitFields({
+                    type: record.Type.ITEM_FULFILLMENT,
+                    id: recordId,
+                    values: {
+                        'custbody_urku_signed_pdf_link': fullFileUrl
                     }
                 });
+
             } catch (e) {
-                log.error('PDF Email Attachment Error', `Failed to email/attach PDF for IF ID ${recordId}. Error: ${e.message}`);
+                log.error('PDF Save/Link Error', `Failed to save or link PDF for IF ID ${recordId}. Error: ${e.message}`);
             }
             
+            // Serve the file for download to the user
             response.writeFile(pdfFile, true);
         };
 
-        // handleSendEmail, handleGet, and handlePost functions remain the same...
-        
         const handleSendEmail = (request, response) => {
             const recordId = request.parameters.recordId;
             const tranId = request.parameters.tranid;
